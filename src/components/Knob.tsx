@@ -9,7 +9,6 @@ import Animated, {
   useSharedValue,
 } from "react-native-reanimated";
 
-// Tanya/Farm színpaletta
 const COLORS = {
   track: "#E8D5B7",
   trackActive: "#8FBC8F",
@@ -19,26 +18,29 @@ const COLORS = {
 };
 
 interface KnobProps {
-  value: number; // 0-100
+  value: number;
   onChange: (value: number) => void;
-  size?: number; // Magasság
+  onInteraction?: () => void; // ✅ Új: aktivitás jelzés
+  size?: number;
 }
 
-export default function Knob({ value, onChange, size = 120 }: KnobProps) {
+export default function Knob({
+  value,
+  onChange,
+  onInteraction,
+  size = 120,
+}: KnobProps) {
   const trackHeight = size;
   const thumbSize = 56;
 
-  // Shared values - teljesen a gesture kezeli
   const position = useSharedValue(value / 100);
   const isDragging = useSharedValue(false);
   const startPosition = useSharedValue(0);
 
-  // Haptic feedback
   const triggerHaptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
-  // Value change callback
   const updateValue = useCallback(
     (newValue: number) => {
       onChange(newValue);
@@ -46,7 +48,6 @@ export default function Knob({ value, onChange, size = 120 }: KnobProps) {
     [onChange]
   );
 
-  // Külső value változás CSAK ha NEM draggel a user
   React.useEffect(() => {
     if (!isDragging.value) {
       position.value = value / 100;
@@ -58,26 +59,26 @@ export default function Knob({ value, onChange, size = 120 }: KnobProps) {
       isDragging.value = true;
       startPosition.value = position.value;
       runOnJS(triggerHaptic)();
+
+      // ✅ Aktivitás jelzés
+      if (onInteraction) {
+        runOnJS(onInteraction)();
+      }
     })
     .onUpdate((event) => {
-      // Közvetlen pozíció számítás - NINCS ANIMÁCIÓ
       const trackRange = trackHeight - thumbSize;
       const deltaY = event.translationY / trackRange;
 
-      // Új pozíció = start - delta (felfelé húzás = növekvő érték)
       const newPosition = Math.max(
         0,
         Math.min(1, startPosition.value - deltaY)
       );
 
-      // AZONNALI update - nincs spring!
       position.value = newPosition;
 
-      // JS callback throttled (csak ha elég nagy a változás)
       const newValue = Math.round(newPosition * 100);
       const currentValue = Math.round(startPosition.value * 100);
 
-      // Csak 5%-onként haptic és value update (kevesebb lag)
       if (Math.abs(newValue - currentValue) >= 5) {
         runOnJS(updateValue)(newValue);
       }
@@ -85,20 +86,13 @@ export default function Knob({ value, onChange, size = 120 }: KnobProps) {
     .onEnd(() => {
       isDragging.value = false;
 
-      // Végső érték
       const finalValue = Math.round(position.value * 100);
       runOnJS(updateValue)(finalValue);
       runOnJS(triggerHaptic)();
-
-      // Opcionális: snap to nearest 5%
-      // const snappedValue = Math.round(finalValue / 5) * 5;
-      // position.value = withSpring(snappedValue / 100, { damping: 15 });
-      // runOnJS(updateValue)(snappedValue);
     });
 
   const thumbAnimatedStyle = useAnimatedStyle(() => {
     const trackRange = trackHeight - thumbSize;
-    // Invertált: position 1 = top (max), position 0 = bottom (min)
     const top = (1 - position.value) * trackRange;
     return {
       transform: [{ translateY: top }],
@@ -113,15 +107,10 @@ export default function Knob({ value, onChange, size = 120 }: KnobProps) {
 
   return (
     <View style={styles.container}>
-      {/* Track container */}
       <View style={[styles.trackContainer, { height: trackHeight }]}>
-        {/* Background track */}
         <View style={styles.track} />
-
-        {/* Active portion (fills from bottom) */}
         <Animated.View style={[styles.trackActive, activeTrackStyle]} />
 
-        {/* Thumb */}
         <GestureDetector gesture={gesture}>
           <Animated.View
             style={[

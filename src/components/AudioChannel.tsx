@@ -1,7 +1,7 @@
 // src/components/AudioChannel.tsx
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Image } from "expo-image";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -20,6 +19,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
+import i18n from "../../i18n/index";
 import Knob from "./Knob";
 
 // Tanya/Farm színpaletta
@@ -39,7 +39,7 @@ const COLORS = {
 };
 
 interface Channel {
-  name: string;
+  name: string | (() => string);
   file: any;
   type?: string;
   img?: ImageSourcePropType;
@@ -50,6 +50,7 @@ interface AudioChannelProps {
   isActive: boolean;
   onToggle: () => void;
   isTablet?: boolean;
+  onInteraction?: () => void; // ✅ Új prop az auto-sleep-hez
 }
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -59,6 +60,7 @@ export default function AudioChannel({
   isActive,
   onToggle,
   isTablet = false,
+  onInteraction, // ✅ Fogadjuk a prop-ot
 }: AudioChannelProps) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [volume, setVolume] = useState(70);
@@ -131,7 +133,8 @@ export default function AudioChannel({
       abortControllerRef.current = controller;
 
       // Helper: ellenőrzi, hogy érvényes-e még a művelet
-      const isAborted = () => controller.signal.aborted || !isMountedRef.current;
+      const isAborted = () =>
+        controller.signal.aborted || !isMountedRef.current;
 
       setIsProcessing(true);
 
@@ -155,7 +158,7 @@ export default function AudioChannel({
 
           // 2. Ellenőrizzük, hogy nem abort-olták-e közben
           if (isAborted()) {
-            console.log('[AudioChannel] Aborted before loading new sound');
+            console.log("[AudioChannel] Aborted before loading new sound");
             return;
           }
 
@@ -170,7 +173,7 @@ export default function AudioChannel({
 
           // 4. Újra ellenőrizzük - ha közben abort volt, unload és kilépés
           if (isAborted()) {
-            console.log('[AudioChannel] Aborted after loading, cleaning up');
+            console.log("[AudioChannel] Aborted after loading, cleaning up");
             await newSound.unloadAsync();
             return;
           }
@@ -180,7 +183,7 @@ export default function AudioChannel({
 
           // 6. Utolsó ellenőrzés mielőtt mentjük
           if (isAborted()) {
-            console.log('[AudioChannel] Aborted after play, cleaning up');
+            console.log("[AudioChannel] Aborted after play, cleaning up");
             await newSound.stopAsync();
             await newSound.unloadAsync();
             return;
@@ -189,7 +192,6 @@ export default function AudioChannel({
           // 7. Sikeres - mentjük a referenciákat
           soundRef.current = newSound;
           setSound(newSound);
-
         } else {
           // === STOP ===
 
@@ -205,13 +207,13 @@ export default function AudioChannel({
               await currentSound.stopAsync();
               await currentSound.unloadAsync();
             } catch (e) {
-              console.warn('[AudioChannel] Error during stop:', e);
+              console.warn("[AudioChannel] Error during stop:", e);
             }
           }
         }
       } catch (error) {
         if (!isAborted()) {
-          console.error('[AudioChannel] Sound management error:', error);
+          console.error("[AudioChannel] Sound management error:", error);
         }
       } finally {
         // Csak akkor állítjuk vissza a processing-et, ha ez még az aktuális művelet
@@ -228,7 +230,7 @@ export default function AudioChannel({
   useEffect(() => {
     if (soundRef.current && isActive) {
       soundRef.current.setVolumeAsync(volume / 100).catch((e) => {
-        console.warn('[AudioChannel] Volume change error:', e);
+        console.warn("[AudioChannel] Volume change error:", e);
       });
     }
   }, [volume, isActive]);
@@ -236,7 +238,7 @@ export default function AudioChannel({
   const handlePress = () => {
     // Ne engedjünk új kattintást, amíg folyamatban van egy művelet
     if (isProcessing) {
-      console.log('[AudioChannel] Press ignored - processing in progress');
+      console.log("[AudioChannel] Press ignored - processing in progress");
       return;
     }
 
@@ -254,7 +256,22 @@ export default function AudioChannel({
       withTiming(1, { duration: 200 })
     );
 
+    // ✅ Aktivitás jelzés
+    if (onInteraction) {
+      onInteraction();
+    }
+
     onToggle();
+  };
+
+  // ✅ Hangerő változtatás + aktivitás jelzés
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+
+    // ✅ Aktivitás jelzés
+    if (onInteraction) {
+      onInteraction();
+    }
   };
 
   const handAnimatedStyle = useAnimatedStyle(() => ({
@@ -270,11 +287,15 @@ export default function AudioChannel({
   }));
 
   const cardHeight = isTablet ? 220 : 120;
-  const imageWidth = isTablet ? 320 : 180;
-  const fadeWidth = isTablet ? 120 : 80;
+  const imageWidth = isTablet ? 400 : 180;
+  // const fadeWidth = isTablet ? 120 : 80;
   const knobSize = isTablet ? 120 : 90;
 
   const bgColor = isActive ? COLORS.cardBgActive : COLORS.cardBg;
+
+  const getChannelName = () => {
+    return typeof channel.name === "function" ? channel.name() : channel.name;
+  };
 
   return (
     <AnimatedTouchable
@@ -305,7 +326,7 @@ export default function AudioChannel({
         </Animated.View>
       )}
 
-      {/* Széles kép - bal oldal, fade a jobb szélén */}
+      {/* Széles kép - bal oldal, fade a jobb szélén (FADE KISZEDVE! HA MÉGIS KELL LOGIKA A KOMPONENS ALJÁN) */}
       <View style={[styles.imageSection, { width: imageWidth }]}>
         {channel.img && (
           <Image
@@ -316,16 +337,6 @@ export default function AudioChannel({
             cachePolicy="memory-disk"
           />
         )}
-
-        {/* Fade gradient on right edge */}
-        <LinearGradient
-          colors={["transparent", bgColor]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.fadeGradient, { width: fadeWidth }]}
-          pointerEvents="none"
-        />
-
         {/* Flash overlay */}
         <Animated.View style={[styles.flashOverlay, imageFlashStyle]} />
 
@@ -352,27 +363,32 @@ export default function AudioChannel({
               isTablet && styles.channelNameTablet,
             ]}
           >
-            {channel.name}
+            {getChannelName()}
           </Text>
           {isActive && !isProcessing && (
             <Text
               style={[styles.volumeText, isTablet && styles.volumeTextTablet]}
             >
-              Hangerő: {volume}%
+              {i18n.t("ui.volume")}: {volume}%
             </Text>
           )}
           {isProcessing && (
             <Text
               style={[styles.volumeText, isTablet && styles.volumeTextTablet]}
             >
-              Betöltés...
+              {i18n.t("ui.loading")}
             </Text>
           )}
         </View>
 
         {/* Knob - jobb sarokban */}
         <View style={[styles.knobContainer, !isActive && styles.knobInactive]}>
-          <Knob value={volume} onChange={setVolume} size={knobSize} />
+          <Knob
+            value={volume}
+            onChange={handleVolumeChange}
+            onInteraction={onInteraction} // ✅ Továbbítjuk a Knob-nak
+            size={knobSize}
+          />
         </View>
       </View>
     </AnimatedTouchable>
@@ -497,3 +513,14 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
 });
+
+
+//
+// {/* Fade gradient on right edge */}
+// <LinearGradient
+//   colors={["transparent", bgColor]}
+//   start={{ x: 0, y: 0 }}
+//   end={{ x: 1, y: 0 }}
+//   style={[styles.fadeGradient, { width: fadeWidth }]}
+//   pointerEvents="none"
+// />

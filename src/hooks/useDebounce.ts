@@ -3,7 +3,7 @@ import { useRef, useCallback } from 'react';
 
 /**
  * Debounce hook - megakadályozza a túl gyors ismételt hívásokat
- * Gyerekbarát UI-hoz ideális: gyors kattintgatás nem okoz problémát
+ * Gyerekbarát UI: gyors kattintgatás nem rombolja le az appot
  */
 
 export function useDebounce<T extends (...args: any[]) => void>(

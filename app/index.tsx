@@ -1,8 +1,6 @@
 // app/index.tsx
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   SafeAreaView,
@@ -13,68 +11,47 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Svg, { Path } from "react-native-svg";
 import AudioChannel from "../src/components/AudioChannel";
+import LanguageSwitcher from "../src/components/LanguageSwitcher";
+import SceneHeader from "../src/components/SceneHeader";
+import { useLanguage } from "../src/contexts/LanguageContext";
 import { scenes } from "../src/data/scenes";
+import { useAutoSleep } from "../src/hooks/useAutoSleep";
 
-// Tanya/Farm színpaletta
 const COLORS = {
   background: "#F5E6D3",
-  backgroundDark: "#E8DCC8",
-  primary: "#8B7355",
-  secondary: "#6B8E23",
-  accent: "#D4A574",
-  dark: "#4A3728",
-  text: "#3D2914",
-  textLight: "#F5E6D3",
-  border: "#C4A77D",
-  navButton: "#8B7355",
-  navButtonBorder: "#D4A574",
+  primary: "#8B4513",
+  text: "#3E2723",
+  buttonText: "#F5E6D3",
 };
 
-// SVG Nyíl komponensek
-const ArrowLeft = () => (
-  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M15 18L9 12L15 6"
-      stroke={COLORS.textLight}
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+ // Alvó állapot időzítő és debounce időzítő értékek
 
-const ArrowRight = () => (
-  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M9 18L15 12L9 6"
-      stroke={COLORS.textLight}
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-// Debounce delay (ms) - gyerekeknek magasabb érték ajánlott
 const TOGGLE_DEBOUNCE_MS = 200;
+const AUTO_SLEEP_TIMEOUT = 60000 // 1 perc és szundi; 
+
+const LABELS = {
+  hu: { title: "Hangtájoló", start: "Indítás" },
+  en: { title: "Soundscape", start: "Start" },
+  de: { title: "Klanglandschaft", start: "Starten" },
+};
 
 export default function HomeScreen() {
+  const { language } = useLanguage();
+
+  // Állapot: Elindult-e az app?
+  const [hasStarted, setHasStarted] = useState(false);
+
   const [currentScene, setCurrentScene] = useState(0);
   const [channelStates, setChannelStates] = useState(
     scenes.map((scene) => scene.channels.map(() => false))
   );
   const { width } = useWindowDimensions();
 
-  // Debounce tracking - csatornánként
   const lastToggleRef = useRef<{ [key: string]: number }>({});
-
-  // Tablet detektálás: 600dp felett = tablet
   const isTablet = width >= 600;
 
   useEffect(() => {
-    // Audio konfiguráció
     Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
       playsInSilentModeIOS: true,
@@ -83,28 +60,53 @@ export default function HomeScreen() {
     });
   }, []);
 
+  // ✅ MÓDOSÍTOTT AUTO-SLEEP FÜGGVÉNY
+  const handleSleep = useCallback(() => {
+    if (!hasStarted) return; // Ha már a kezdőképernyőn vagyunk, ne fusson le
+
+    console.log("🌙 Auto-sleep: Resetelés és visszatérés a kezdőképernyőre");
+
+    // 1. Minden hang lekapcsolása
+    setChannelStates((prev) =>
+      prev.map((sceneChannels) => sceneChannels.map(() => false))
+    );
+
+    // 2. Visszaugrás az első jelenetre (hogy a következő látogató az elején kezdje)
+    setCurrentScene(0);
+
+    // 3. Visszalépés a START képernyőre
+    setHasStarted(false);
+
+    // Opcionális: Görgetés a tetejére (ha van ref a ScrollView-hoz, de a képernyőváltás miatt ez automatikus lesz)
+
+    // Haptic feedback
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }, [hasStarted]);
+
+  const { resetTimer } = useAutoSleep({
+    timeout: AUTO_SLEEP_TIMEOUT,
+    onSleep: handleSleep,
+  });
+
   const handlePrevScene = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCurrentScene((prev) => (prev - 1 + scenes.length) % scenes.length);
+    resetTimer();
   };
 
   const handleNextScene = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCurrentScene((prev) => (prev + 1) % scenes.length);
+    resetTimer();
   };
 
-  // Debounced toggle - megakadályozza a túl gyors kattintásokat
   const toggleChannel = useCallback(
     (channelIndex: number) => {
       const key = `${currentScene}-${channelIndex}`;
       const now = Date.now();
       const lastToggle = lastToggleRef.current[key] || 0;
 
-      // Ha túl gyorsan jött a kattintás, ignoráljuk
       if (now - lastToggle < TOGGLE_DEBOUNCE_MS) {
-        console.log(
-          `[HomeScreen] Toggle debounced for channel ${channelIndex}`
-        );
         return;
       }
 
@@ -117,68 +119,53 @@ export default function HomeScreen() {
           !newStates[currentScene][channelIndex];
         return newStates;
       });
+
+      resetTimer();
     },
-    [currentScene]
+    [currentScene, resetTimer]
   );
 
-  // Scene váltáskor leállítjuk az összes hangot az előző scene-ben
-  // Ez opcionális - ha szeretnéd, hogy a hangok maradjanak, kommenteld ki
-  /*
-  useEffect(() => {
-    // Reset all channels when scene changes
-    setChannelStates((prev) => {
-      const newStates = [...prev];
-      // Előző scene összes hangja leáll
-      const prevScene = (currentScene - 1 + scenes.length) % scenes.length;
-      newStates[prevScene] = newStates[prevScene].map(() => false);
-      return newStates;
-    });
-  }, [currentScene]);
-  */
+  const handleStart = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setHasStarted(true);
+    resetTimer();
+  };
 
+  // --- START KÉPERNYŐ ---
+  if (!hasStarted) {
+    const texts = LABELS[language as keyof typeof LABELS] || LABELS.en;
+    return (
+      <SafeAreaView style={[styles.container, styles.centerContent]}>
+        <View style={styles.startContainer}>
+          <Text style={styles.title}>{texts.title}</Text>
+          <View style={styles.languageContainer}>
+            <LanguageSwitcher />
+          </View>
+          <TouchableOpacity style={styles.startButton} onPress={handleStart}>
+            <Text style={styles.startButtonText}>{texts.start}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // --- FŐ ALKALMAZÁS ---
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Színtér váltó - HÁTTÉRKÉPPEL */}
-        <View style={styles.sceneSelector}>
-          <Image
-            source={scenes[currentScene].backgroundImg}
-            style={styles.backgroundImage}
-            contentFit="cover"
-            transition={200}
-            cachePolicy="memory-disk"
-          />
-          <LinearGradient
-            colors={["rgba(74, 55, 40, 0.75)", "rgba(74, 55, 40, 0.5)"]}
-            style={styles.overlay}
-          >
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={handlePrevScene}
-              activeOpacity={0.7}
-            >
-              <ArrowLeft />
-            </TouchableOpacity>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        onScrollBeginDrag={resetTimer}
+      >
+        <SceneHeader
+          scene={scenes[currentScene]}
+          onPrev={handlePrevScene}
+          onNext={handleNextScene}
+        />
 
-            <View style={styles.sceneInfo}>
-              <Text style={styles.title}>{scenes[currentScene].name}</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={handleNextScene}
-              activeOpacity={0.7}
-            >
-              <ArrowRight />
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>
-
-        {/* Csatornák */}
         <View style={styles.channelsContainer}>
           {scenes[currentScene].channels.map((channel, index) => (
             <AudioChannel
-              key={`${currentScene}-${index}`}
+              key={`${currentScene}-${index}-${language}`}
               channel={channel}
               isActive={channelStates[currentScene][index]}
               onToggle={() => toggleChannel(index)}
@@ -196,63 +183,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  scrollContent: {
-    padding: 20,
-  },
-  sceneSelector: {
-    borderRadius: 20,
-    overflow: "hidden",
-    marginBottom: 24,
-    elevation: 6,
-    shadowColor: COLORS.dark,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    height: 300,
-    width: "100%",
-    position: "relative",
-  },
-  backgroundImage: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 20,
-  },
-  overlay: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    flex: 1,
-  },
-  navButton: {
-    backgroundColor: COLORS.navButton,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+  centerContent: {
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: COLORS.dark,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
-    borderWidth: 2,
-    borderColor: COLORS.navButtonBorder,
   },
-  sceneInfo: {
-    flex: 1,
-    alignItems: "center",
-    marginHorizontal: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: COLORS.textLight,
-    textAlign: "center",
-    textShadowColor: "rgba(0, 0, 0, 0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  scrollContent: {
+    padding: 20,
+    paddingTop: 40,
   },
   channelsContainer: {
     gap: 25,
+  },
+  startContainer: {
+    width: "100%",
+    alignItems: "center",
+    gap: 40,
+    paddingHorizontal: 20,
+  },
+  title: {
+    fontSize: 42,
+    fontWeight: "bold",
+    color: COLORS.text,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  languageContainer: {
+    marginBottom: 20,
+    transform: [{ scale: 1.2 }],
+  },
+  startButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 18,
+    paddingHorizontal: 60,
+    borderRadius: 50,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  startButtonText: {
+    color: COLORS.buttonText,
+    fontSize: 24,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    letterSpacing: 2,
   },
 });
