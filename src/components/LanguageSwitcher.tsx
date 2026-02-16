@@ -1,24 +1,22 @@
 import * as Haptics from "expo-haptics";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-// Importáljuk a Contextet
+
 import { getAvailableLanguages } from "../../i18n/index";
 import { useLanguage } from "../contexts/LanguageContext";
 
-type SupportedLanguage = "hu" | "en" | "de" | "es";
+type SupportedLanguage = "hu" | "en" | "sr";
 
 const LANGUAGE_FLAGS: Record<SupportedLanguage, string> = {
   hu: "🇭🇺",
   en: "🇬🇧",
-  de: "🇩🇪",
-  es: "🇪🇸",
+  sr: "🇷🇸",
 };
 
 const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
   hu: "Magyar",
   en: "English",
-  de: "Deutsch",
-  es: "Español",
+  sr: "Srpski",
 };
 
 export default function LanguageSwitcher() {
@@ -71,7 +69,7 @@ const styles = StyleSheet.create({
   langButton: {
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#F5E6D3",
+    backgroundColor: "#f4f0e3",
     borderWidth: 2,
     borderColor: "#C4A77D",
     alignItems: "center",
@@ -84,7 +82,7 @@ const styles = StyleSheet.create({
   },
   langButtonActive: {
     backgroundColor: "#E8F5E0",
-    borderColor: "#8FBC8F",
+    borderColor: "#6A7730",
     borderWidth: 3,
   },
   flag: {
@@ -93,12 +91,11 @@ const styles = StyleSheet.create({
   langName: {
     fontSize: 12,
     marginTop: 4,
-    color: "#3D2914",
-    fontWeight: "600",
+    color: "#63A2C",
+    fontFamily: "Cantarell-Bold",
   },
   langNameActive: {
-    color: "#6B8E23",
-    fontWeight: "700",
+    color: "#6A7730",
+    fontFamily: "Cantarell-Bold",
   },
 });
-

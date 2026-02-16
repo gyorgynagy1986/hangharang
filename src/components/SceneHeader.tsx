@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: "bold",
+    fontFamily: "Cantarell-Bold",
     color: COLORS.textLight,
     textAlign: "center",
     textShadowColor: "rgba(0, 0, 0, 0.5)",

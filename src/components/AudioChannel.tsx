@@ -394,7 +394,6 @@ export default function AudioChannel({
     </AnimatedTouchable>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
@@ -425,7 +424,7 @@ const styles = StyleSheet.create({
   },
   handContainer: {
     position: "absolute",
-    top: 0,
+    top: -100,
     left: "50%",
     right: 0,
     bottom: 0,
@@ -487,18 +486,19 @@ const styles = StyleSheet.create({
   },
   channelName: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "Cantarell-Bold",
     color: COLORS.text,
   },
   channelNameActive: {
     color: COLORS.secondary,
-    fontWeight: "700",
+    fontFamily: "Cantarell-Bold",
   },
   channelNameTablet: {
     fontSize: 24,
   },
   volumeText: {
     fontSize: 12,
+    fontFamily: "Cantarell-Regular",
     color: COLORS.textLight,
     marginTop: 4,
   },

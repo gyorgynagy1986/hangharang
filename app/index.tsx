@@ -3,6 +3,7 @@ import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ImageBackground,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { translations } from "../i18n/translations";
 import AudioChannel from "../src/components/AudioChannel";
 import LanguageSwitcher from "../src/components/LanguageSwitcher";
 import SceneHeader from "../src/components/SceneHeader";
@@ -19,37 +21,32 @@ import { scenes } from "../src/data/scenes";
 import { useAutoSleep } from "../src/hooks/useAutoSleep";
 
 const COLORS = {
-  background: "#F5E6D3",
-  primary: "#8B4513",
-  text: "#3E2723",
+  background: "#f4f0e3",
+  primary: "#6A7730",
+  text: "#363A2C",
+  textLight: "#363A2C",
   buttonText: "#F5E6D3",
+  overlay: "#f4f0e3", // Átlátszó háttér a szöveg mögé
 };
-
- // Alvó állapot időzítő és debounce időzítő értékek
 
 const TOGGLE_DEBOUNCE_MS = 200;
-const AUTO_SLEEP_TIMEOUT = 60000 // 1 perc és szundi; 
+const AUTO_SLEEP_TIMEOUT = 6000;
 
-const LABELS = {
-  hu: { title: "Hangtájoló", start: "Indítás" },
-  en: { title: "Soundscape", start: "Start" },
-  de: { title: "Klanglandschaft", start: "Starten" },
-};
+type SupportedLanguage = "hu" | "en" | "sr";
 
 export default function HomeScreen() {
   const { language } = useLanguage();
-
-  // Állapot: Elindult-e az app?
   const [hasStarted, setHasStarted] = useState(false);
-
   const [currentScene, setCurrentScene] = useState(0);
   const [channelStates, setChannelStates] = useState(
-    scenes.map((scene) => scene.channels.map(() => false))
+    scenes.map((scene) => scene.channels.map(() => false)),
   );
   const { width } = useWindowDimensions();
 
   const lastToggleRef = useRef<{ [key: string]: number }>({});
   const isTablet = width >= 600;
+
+  const t = translations[language as SupportedLanguage] || translations.en;
 
   useEffect(() => {
     Audio.setAudioModeAsync({
@@ -60,26 +57,18 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // ✅ MÓDOSÍTOTT AUTO-SLEEP FÜGGVÉNY
   const handleSleep = useCallback(() => {
-    if (!hasStarted) return; // Ha már a kezdőképernyőn vagyunk, ne fusson le
+    if (!hasStarted) return;
 
     console.log("🌙 Auto-sleep: Resetelés és visszatérés a kezdőképernyőre");
 
-    // 1. Minden hang lekapcsolása
     setChannelStates((prev) =>
-      prev.map((sceneChannels) => sceneChannels.map(() => false))
+      prev.map((sceneChannels) => sceneChannels.map(() => false)),
     );
 
-    // 2. Visszaugrás az első jelenetre (hogy a következő látogató az elején kezdje)
     setCurrentScene(0);
-
-    // 3. Visszalépés a START képernyőre
     setHasStarted(false);
 
-    // Opcionális: Görgetés a tetejére (ha van ref a ScrollView-hoz, de a képernyőváltás miatt ez automatikus lesz)
-
-    // Haptic feedback
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }, [hasStarted]);
 
@@ -122,7 +111,7 @@ export default function HomeScreen() {
 
       resetTimer();
     },
-    [currentScene, resetTimer]
+    [currentScene, resetTimer],
   );
 
   const handleStart = () => {
@@ -133,19 +122,44 @@ export default function HomeScreen() {
 
   // --- START KÉPERNYŐ ---
   if (!hasStarted) {
-    const texts = LABELS[language as keyof typeof LABELS] || LABELS.en;
     return (
-      <SafeAreaView style={[styles.container, styles.centerContent]}>
-        <View style={styles.startContainer}>
-          <Text style={styles.title}>{texts.title}</Text>
-          <View style={styles.languageContainer}>
+      <ImageBackground
+        source={require("../assets/img/cover.jpg")}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={[styles.container, styles.centerContent]}>
+          {/* Nyelvválasztó - jobb felső sarok */}
+          <View style={styles.languageTopRight}>
             <LanguageSwitcher />
           </View>
-          <TouchableOpacity style={styles.startButton} onPress={handleStart}>
-            <Text style={styles.startButtonText}>{texts.start}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+
+          <ScrollView
+            contentContainerStyle={styles.startScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Tartalom kártya átlátszó háttérrel */}
+            <View style={styles.contentCard}>
+              {/* Cím */}
+              <Text style={styles.title}>{t.ui.introTitle}</Text>
+
+              {/* Bevezető szöveg - tagolva */}
+              <View style={styles.introContainer}>
+                <Text style={styles.introText}>{t.ui.introParagraph1}</Text>
+                <Text style={styles.introText}>{t.ui.introParagraph2}</Text>
+              </View>
+
+              {/* Start gomb */}
+              <TouchableOpacity
+                style={styles.startButton}
+                onPress={handleStart}
+              >
+                <Text style={styles.startButtonText}>{t.ui.start}</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </ImageBackground>
     );
   }
 
@@ -183,49 +197,79 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
   centerContent: {
-    justifyContent: "center",
-    alignItems: "center",
+    flex: 1,
+    backgroundColor: "transparent",
   },
   scrollContent: {
     padding: 20,
     paddingTop: 40,
   },
+  startScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: 40,
+  },
   channelsContainer: {
     gap: 25,
   },
-  startContainer: {
-    width: "100%",
+  contentCard: {
+    backgroundColor: COLORS.overlay,
+    borderRadius: 50,
+    padding: 40,
+    maxWidth: 700,
+    alignSelf: "center",
     alignItems: "center",
-    gap: 40,
-    paddingHorizontal: 20,
+    gap: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   title: {
-    fontSize: 42,
-    fontWeight: "bold",
+    fontSize: 48,
+    fontFamily: "Cantarell-Bold", // fontWeight: "bold" helyett
     color: COLORS.text,
     textAlign: "center",
-    marginBottom: 20,
   },
-  languageContainer: {
-    marginBottom: 20,
-    transform: [{ scale: 1.2 }],
+  introContainer: {
+    gap: 20,
+  },
+  introText: {
+    fontSize: 24,
+    lineHeight: 36,
+    fontFamily: "Cantarell-Regular",
+    color: COLORS.textLight,
+    textAlign: "center",
+  },
+  languageTopRight: {
+    position: "absolute",
+    top: 50,
+    right: 30,
+    zIndex: 10,
   },
   startButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 18,
-    paddingHorizontal: 60,
+    paddingVertical: 22,
+    paddingHorizontal: 80,
     borderRadius: 50,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 6,
+    marginTop: 8,
   },
   startButtonText: {
     color: COLORS.buttonText,
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 28,
+    fontFamily: "Cantarell-Bold", // fontWeight: "bold" helyett
     textTransform: "uppercase",
     letterSpacing: 2,
   },
