@@ -2,7 +2,13 @@
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useLanguage } from "../contexts/LanguageContext";
 
@@ -41,22 +47,36 @@ interface SceneHeaderProps {
   scene: any;
   onPrev: () => void;
   onNext: () => void;
+  fillHeight?: boolean;
 }
 
 export default function SceneHeader({
   scene,
   onPrev,
   onNext,
+  fillHeight = false,
 }: SceneHeaderProps) {
   const { language } = useLanguage();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
-  //  A title dinamikusan számolódik a language alapján
+  // Ha fillHeight true (landscape mód), flex: 1 kitölti a szülő magasságát
+  // Ha nem, portrait módban fix/dinamikus magasság
+  const headerHeight = fillHeight ? undefined : Math.min(300, height * 0.35);
+
+  const titleSize = isLandscape ? 18 : 22;
+
   const title = React.useMemo(() => {
     return typeof scene.name === "function" ? scene.name() : scene.name;
   }, [scene.name, language]);
 
   return (
-    <View style={styles.sceneSelector}>
+    <View
+      style={[
+        styles.sceneSelector,
+        fillHeight ? styles.fillHeight : { height: headerHeight },
+      ]}
+    >
       <Image
         source={scene.backgroundImg}
         style={styles.backgroundImage}
@@ -69,7 +89,7 @@ export default function SceneHeader({
         style={styles.overlay}
       >
         <TouchableOpacity
-          style={styles.navButton}
+          style={[styles.navButton, isLandscape && styles.navButtonLandscape]}
           onPress={onPrev}
           activeOpacity={0.7}
         >
@@ -77,11 +97,11 @@ export default function SceneHeader({
         </TouchableOpacity>
 
         <View style={styles.sceneInfo}>
-          <Text style={styles.title}>{title}</Text>
+          <Text style={[styles.title, { fontSize: titleSize }]}>{title}</Text>
         </View>
 
         <TouchableOpacity
-          style={styles.navButton}
+          style={[styles.navButton, isLandscape && styles.navButtonLandscape]}
           onPress={onNext}
           activeOpacity={0.7}
         >
@@ -102,9 +122,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
-    height: 300,
     width: "100%",
     position: "relative",
+  },
+  fillHeight: {
+    flex: 1,
+    marginBottom: 0,
   },
   backgroundImage: {
     ...StyleSheet.absoluteFillObject,
@@ -132,13 +155,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.navButtonBorder,
   },
+  navButtonLandscape: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
   sceneInfo: {
     flex: 1,
     alignItems: "center",
     marginHorizontal: 16,
   },
   title: {
-    fontSize: 22,
     fontFamily: "Cantarell-Bold",
     color: COLORS.textLight,
     textAlign: "center",

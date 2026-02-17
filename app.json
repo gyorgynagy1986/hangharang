@@ -3,7 +3,7 @@
     "name": "Hangharang Kezelő",
     "slug": "hangharang-app",
     "version": "1.0.6",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "hangharangapp",
     "userInterfaceStyle": "dark",
@@ -13,9 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#1a1a2e"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourname.hangharang"
@@ -23,18 +21,13 @@
     "android": {
       "package": "com.yourname.hangharang",
       "versionCode": 6,
-      "permissions": [
-        "VIBRATE",
-        "WAKE_LOCK",
-        "SYSTEM_ALERT_WINDOW"
-      ],
+      "permissions": ["VIBRATE", "WAKE_LOCK", "SYSTEM_ALERT_WINDOW"],
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "screenOrientation": "portrait"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",

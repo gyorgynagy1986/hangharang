@@ -15,7 +15,7 @@ import {
 import { translations } from "../i18n/translations";
 import AudioChannel from "../src/components/AudioChannel";
 import LanguageSwitcher from "../src/components/LanguageSwitcher";
-import SceneHeader from "../src/components/SceneHeader";
+import SceneHeader from "../src/components/SceneHeader"; 
 import { useLanguage } from "../src/contexts/LanguageContext";
 import { scenes } from "../src/data/scenes";
 import { useAutoSleep } from "../src/hooks/useAutoSleep";
@@ -26,11 +26,11 @@ const COLORS = {
   text: "#363A2C",
   textLight: "#363A2C",
   buttonText: "#F5E6D3",
-  overlay: "#f4f0e3", // Átlátszó háttér a szöveg mögé
+  overlay: "#f4f0e3",
 };
 
 const TOGGLE_DEBOUNCE_MS = 200;
-const AUTO_SLEEP_TIMEOUT = 6000;
+const AUTO_SLEEP_TIMEOUT = 60000;
 
 type SupportedLanguage = "hu" | "en" | "sr";
 
@@ -41,10 +41,11 @@ export default function HomeScreen() {
   const [channelStates, setChannelStates] = useState(
     scenes.map((scene) => scene.channels.map(() => false)),
   );
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
 
   const lastToggleRef = useRef<{ [key: string]: number }>({});
-  const isTablet = width >= 600;
+  const isTablet = Math.min(width, height) >= 600;
+  const isLandscape = width > height;
 
   const t = translations[language as SupportedLanguage] || translations.en;
 
@@ -120,6 +121,15 @@ export default function HomeScreen() {
     resetTimer();
   };
 
+  // Dinamikus méretek
+  const titleSize = isLandscape ? 32 : isTablet ? 48 : 36;
+  const introSize = isLandscape ? 16 : isTablet ? 24 : 18;
+  const introLineHeight = isLandscape ? 24 : isTablet ? 36 : 28;
+  const buttonFontSize = isLandscape ? 20 : isTablet ? 28 : 22;
+  const cardPadding = isLandscape ? 24 : 40;
+  const startPaddingH = isLandscape ? 50 : 80;
+  const startPaddingV = isLandscape ? 14 : 22;
+
   // --- START KÉPERNYŐ ---
   if (!hasStarted) {
     return (
@@ -135,26 +145,57 @@ export default function HomeScreen() {
           </View>
 
           <ScrollView
-            contentContainerStyle={styles.startScrollContent}
+            contentContainerStyle={[
+              styles.startScrollContent,
+              isLandscape && styles.startScrollContentLandscape,
+            ]}
             showsVerticalScrollIndicator={false}
           >
-            {/* Tartalom kártya átlátszó háttérrel */}
-            <View style={styles.contentCard}>
-              {/* Cím */}
-              <Text style={styles.title}>{t.ui.introTitle}</Text>
+            <View
+              style={[
+                styles.contentCard,
+                { padding: cardPadding },
+                isLandscape && styles.contentCardLandscape,
+              ]}
+            >
+              <Text style={[styles.title, { fontSize: titleSize }]}>
+                {t.ui.introTitle}
+              </Text>
 
-              {/* Bevezető szöveg - tagolva */}
               <View style={styles.introContainer}>
-                <Text style={styles.introText}>{t.ui.introParagraph1}</Text>
-                <Text style={styles.introText}>{t.ui.introParagraph2}</Text>
+                <Text
+                  style={[
+                    styles.introText,
+                    { fontSize: introSize, lineHeight: introLineHeight },
+                  ]}
+                >
+                  {t.ui.introParagraph1}
+                </Text>
+                <Text
+                  style={[
+                    styles.introText,
+                    { fontSize: introSize, lineHeight: introLineHeight },
+                  ]}
+                >
+                  {t.ui.introParagraph2}
+                </Text>
               </View>
 
-              {/* Start gomb */}
               <TouchableOpacity
-                style={styles.startButton}
+                style={[
+                  styles.startButton,
+                  {
+                    paddingVertical: startPaddingV,
+                    paddingHorizontal: startPaddingH,
+                  },
+                ]}
                 onPress={handleStart}
               >
-                <Text style={styles.startButtonText}>{t.ui.start}</Text>
+                <Text
+                  style={[styles.startButtonText, { fontSize: buttonFontSize }]}
+                >
+                  {t.ui.start}
+                </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -163,7 +204,44 @@ export default function HomeScreen() {
     );
   }
 
-  // --- FŐ ALKALMAZÁS ---
+  // --- FŐ ALKALMAZÁS - LANDSCAPE: bal/jobb split ---
+  if (isLandscape) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.landscapeLayout}>
+          {/* Bal oldal: SceneHeader kitölti a teljes magasságot */}
+          <View style={styles.landscapeLeft}>
+            <SceneHeader
+              scene={scenes[currentScene]}
+              onPrev={handlePrevScene}
+              onNext={handleNextScene}
+              fillHeight
+            />
+          </View>
+
+          {/* Jobb oldal: channelek kitöltik a helyet egyenlően */}
+          <View style={styles.landscapeRight}>
+            {scenes[currentScene].channels.map((channel, index) => (
+              <View
+                key={`${currentScene}-${index}-${language}`}
+                style={styles.landscapeChannelItem}
+              >
+                <AudioChannel
+                  channel={channel}
+                  isActive={channelStates[currentScene][index]}
+                  onToggle={() => toggleChannel(index)}
+                  isTablet={isTablet}
+                  fillHeight
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // --- PORTRAIT ---
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -215,13 +293,36 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 40,
   },
+  startScrollContentLandscape: {
+    padding: 20,
+    justifyContent: "center",
+  },
   channelsContainer: {
     gap: 25,
   },
+
+  // === LANDSCAPE SPLIT LAYOUT ===
+  landscapeLayout: {
+    flex: 1,
+    flexDirection: "row",
+    padding: 12,
+    gap: 12,
+  },
+  landscapeLeft: {
+    flex: 2,
+  },
+  landscapeRight: {
+    flex: 2,
+    gap: 8,
+  },
+  landscapeChannelItem: {
+    flex: 1,
+  },
+
+  // === START SCREEN ===
   contentCard: {
     backgroundColor: COLORS.overlay,
     borderRadius: 50,
-    padding: 40,
     maxWidth: 700,
     alignSelf: "center",
     alignItems: "center",
@@ -232,9 +333,13 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  contentCardLandscape: {
+    gap: 16,
+    borderRadius: 30,
+    maxWidth: 600,
+  },
   title: {
-    fontSize: 48,
-    fontFamily: "Cantarell-Bold", // fontWeight: "bold" helyett
+    fontFamily: "Cantarell-Bold",
     color: COLORS.text,
     textAlign: "center",
   },
@@ -242,8 +347,6 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   introText: {
-    fontSize: 24,
-    lineHeight: 36,
     fontFamily: "Cantarell-Regular",
     color: COLORS.textLight,
     textAlign: "center",
@@ -256,8 +359,6 @@ const styles = StyleSheet.create({
   },
   startButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 22,
-    paddingHorizontal: 80,
     borderRadius: 50,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -268,8 +369,7 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     color: COLORS.buttonText,
-    fontSize: 28,
-    fontFamily: "Cantarell-Bold", // fontWeight: "bold" helyett
+    fontFamily: "Cantarell-Bold",
     textTransform: "uppercase",
     letterSpacing: 2,
   },
